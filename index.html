@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Audio QR Scanner</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+    :root {
+      --green: #06C755;
+      --green-dark: #04a344;
+      --green-light: #e6faf0;
+      --bg: #0d0d0d;
+      --surface: #1a1a1a;
+      --surface2: #252525;
+      --border: #2e2e2e;
+      --text: #f5f5f5;
+      --text-muted: #888;
+      --accent: #06C755;
+      --danger: #ff4757;
+      --warning: #ffa502;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Noto Sans Thai', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── HEADER ─── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-icon {
+      width: 40px; height: 40px;
+      background: var(--green);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .header-title { font-size: 17px; font-weight: 700; }
+    .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+    /* ─── SCREENS ─── */
+    .screen { display: none; padding: 20px; animation: fadeUp .3s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── USER CARD ─── */
+    .user-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .user-avatar {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 2px solid var(--green);
+      object-fit: cover;
+      background: var(--surface2);
+    }
+    .user-name { font-size: 15px; font-weight: 600; }
+    .user-id { font-size: 11px; color: var(--text-muted); font-family: 'Space Mono', monospace; margin-top: 3px; }
+    .user-badge {
+      margin-left: auto;
+      background: var(--green-light);
+      color: var(--green-dark);
+      font-size: 11px; font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* ─── BIG SCAN BUTTON ─── */
+    .scan-btn {
+      width: 100%;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 16px;
+      padding: 20px;
+      font-size: 17px;
+      font-weight: 700;
+      font-family: 'Noto Sans Thai', sans-serif;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 16px;
+    }
+    .scan-btn:active { transform: scale(0.97); background: var(--green-dark); }
+    .scan-btn .icon { font-size: 24px; }
+
+    /* ─── STATS ROW ─── */
+    .stats-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-num { font-size: 28px; font-weight: 700; color: var(--green); font-family: 'Space Mono', monospace; }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ─── HISTORY ─── */
+    .section-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer;
+      transition: border-color .2s;
+    }
+    .history-item:active { border-color: var(--green); }
+    .history-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .history-name { font-size: 14px; font-weight: 500; }
+    .history-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .history-play { margin-left: auto; font-size: 20px; color: var(--green); }
+
+    /* ─── SCANNER SCREEN ─── */
+    #scanner-screen { padding: 0; }
+    .scanner-header {
+      padding: 16px 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .back-btn {
+      width: 36px; height: 36px;
+      background: var(--surface2);
+      border: none; border-radius: 10px;
+      color: var(--text); font-size: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    #qr-reader {
+      width: 100%;
+      max-height: 60vw;
+      overflow: hidden;
+    }
+    #qr-reader video { width: 100% !important; border-radius: 0; }
+    .scan-hint {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .scan-overlay {
+      position: relative;
+      background: #000;
+    }
+    .scan-frame {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 200px; height: 200px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .scan-frame::before, .scan-frame::after {
+      content: '';
+      position: absolute;
+      width: 40px; height: 40px;
+      border-color: var(--green);
+      border-style: solid;
+    }
+    .scan-frame::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .scan-frame::after  { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+    /* ─── PLAYER SCREEN ─── */
+    .player-container {
+      text-align: center;
+      padding: 40px 20px 20px;
+    }
+    .player-cover {
+      width: 180px; height: 180px;
+      background: linear-gradient(135deg, var(--green) 0%, #028a3a 100%);
+      border-radius: 24px;
+      margin: 0 auto 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 72px;
+      box-shadow: 0 20px 60px rgba(6,199,85,.3);
+    }
+    .player-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .player-url { font-size: 11px; color: var(--text-muted); font-family: 'Space Mono', monospace; word-break: break-all; margin-bottom: 28px; }
+    audio#main-audio { width: 100%; border-radius: 12px; margin-bottom: 24px; accent-color: var(--green); }
+    .play-controls { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; }
+    .ctrl-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 50%;
+      width: 56px; height: 56px;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s;
+    }
+    .ctrl-btn.primary { background: var(--green); border-color: var(--green); width: 72px; height: 72px; font-size: 28px; }
+    .ctrl-btn:active { transform: scale(0.93); }
+    .log-info {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 16px;
+    }
+    .log-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .log-row:last-child { border-bottom: none; }
+    .log-key { color: var(--text-muted); }
+    .log-val { font-weight: 500; font-family: 'Space Mono', monospace; font-size: 12px; }
+    .save-btn {
+      width: 100%;
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 14px; font-family: 'Noto Sans Thai', sans-serif;
+      cursor: pointer; transition: all .2s;
+    }
+    .save-btn.saved { background: var(--green-light); color: var(--green-dark); border-color: var(--green); font-weight: 600; }
+
+    /* ─── TOAST ─── */
+    .toast {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 14px;
+      z-index: 9999;
+      transition: transform .3s ease;
+      white-space: nowrap;
+      box-shadow: 0 8px 30px rgba(0,0,0,.4);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ─── LOADING ─── */
+    .loading-screen {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 14px; color: var(--text-muted); }
+
+    .empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 14px; }
+    .empty-icon { font-size: 40px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen" class="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text">กำลังเชื่อมต่อ LINE...</div>
+</div>
+
+<!-- HEADER (hidden during loading) -->
+<div class="header" id="main-header" style="display:none">
+  <div class="header-icon">🎵</div>
+  <div>
+    <div class="header-title">Audio QR</div>
+    <div class="header-sub">สแกน QR เพื่อฟังไฟล์เสียง</div>
+  </div>
+</div>
+
+<!-- ═══════════════ HOME SCREEN ═══════════════ -->
+<div class="screen" id="home-screen">
+  <div class="user-card">
+    <img class="user-avatar" id="user-avatar" src="" alt="">
+    <div>
+      <div class="user-name" id="user-name">—</div>
+      <div class="user-id" id="user-uid">—</div>
+    </div>
+    <div class="user-badge">✓ LINE</div>
+  </div>
+
+  <button class="scan-btn" onclick="startScanner()">
+    <span class="icon">📷</span> สแกน QR Code
+  </button>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-today">0</div>
+      <div class="stat-label">วันนี้</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label">ทั้งหมด</div>
+    </div>
+  </div>
+
+  <div class="section-title">ประวัติล่าสุด</div>
+  <div class="history-list" id="history-list">
+    <div class="empty"><div class="empty-icon">🎶</div>ยังไม่มีประวัติการฟัง</div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCANNER SCREEN ═══════════════ -->
+<div class="screen" id="scanner-screen">
+  <div class="scanner-header">
+    <button class="back-btn" onclick="stopScanner()">←</button>
+    <div>
+      <div style="font-weight:600">สแกน QR Code</div>
+      <div style="font-size:12px;color:var(--text-muted)">เล็งไปที่ QR code ไฟล์เสียง</div>
+    </div>
+  </div>
+  <div class="scan-overlay">
+    <div id="qr-reader"></div>
+  </div>
+  <div class="scan-hint">📱 รองรับ QR ที่มี URL ไฟล์ .mp3 .wav .ogg .m4a</div>
+</div>
+
+<!-- ═══════════════ PLAYER SCREEN ═══════════════ -->
+<div class="screen" id="player-screen">
+  <div class="scanner-header">
+    <button class="back-btn" onclick="showHome()">←</button>
+    <div>
+      <div style="font-weight:600">กำลังเล่น</div>
+      <div style="font-size:12px;color:var(--text-muted)" id="player-status">—</div>
+    </div>
+  </div>
+
+  <div class="player-container">
+    <div class="player-cover">🎵</div>
+    <div class="player-title" id="player-title">ไม่ทราบชื่อ</div>
+    <div class="player-url" id="player-url">—</div>
+
+    <audio id="main-audio" controls preload="auto"></audio>
+
+    <div class="log-info">
+      <div class="log-row"><span class="log-key">ผู้ใช้</span><span class="log-val" id="log-user">—</span></div>
+      <div class="log-row"><span class="log-key">เวลา</span><span class="log-val" id="log-time">—</span></div>
+      <div class="log-row"><span class="log-key">ไฟล์เสียง</span><span class="log-val" id="log-file">—</span></div>
+      <div class="log-row"><span class="log-key">สถานะ</span><span class="log-val" id="log-status" style="color:var(--green)">บันทึกแล้ว ✓</span></div>
+    </div>
+
+    <button class="save-btn saved" id="save-indicator">✓ บันทึกข้อมูลไปยัง Google Sheets แล้ว</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIG — แก้ค่าเหล่านี้ก่อน deploy
+// ══════════════════════════════════════════
+const CONFIG = {
+  LIFF_ID: "2009915765-nxqp6Rdk",                          // ← ใส่ LIFF ID จาก Console
+  SHEET_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbw9o5POjgkvUFBoknceC9bhvwcohY0MQnAJSJI7fssX5AwMVdjZ2Pv1qR3jmk4NFxwe/exec",  // ← ใส่ URL จาก Apps Script
+};
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let profile = null;
+let html5QrCode = null;
+let currentAudioUrl = "";
+let sessionHistory = [];
+
+// ══════════════════════════════════════════
+//  INIT LIFF
+// ══════════════════════════════════════════
+async function initLiff() {
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    profile = await liff.getProfile();
+
+    document.getElementById("user-avatar").src = profile.pictureUrl || "";
+    document.getElementById("user-name").textContent = profile.displayName;
+    document.getElementById("user-uid").textContent = profile.userId.substring(0, 20) + "…";
+
+    loadHistory();
+    updateStats();
+
+    document.getElementById("loading-screen").style.display = "none";
+    document.getElementById("main-header").style.display = "flex";
+    showScreen("home-screen");
+  } catch (e) {
+    // Dev mode without LIFF
+    profile = { displayName: "ผู้ใช้ทดสอบ", userId: "U_TEST_001", pictureUrl: "" };
+    document.getElementById("user-name").textContent = profile.displayName;
+    document.getElementById("user-uid").textContent = profile.userId;
+    document.getElementById("user-avatar").src = "https://via.placeholder.com/52/06C755/fff?text=QR";
+    loadHistory();
+    updateStats();
+    document.getElementById("loading-screen").style.display = "none";
+    document.getElementById("main-header").style.display = "flex";
+    showScreen("home-screen");
+  }
+}
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+function showHome() {
+  stopScanner();
+  showScreen("home-screen");
+  updateStats();
+  renderHistory();
+}
+
+// ══════════════════════════════════════════
+//  QR SCANNER
+// ══════════════════════════════════════════
+function startScanner() {
+  showScreen("scanner-screen");
+  html5QrCode = new Html5Qrcode("qr-reader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    onQRSuccess,
+    () => {}
+  ).catch(err => {
+    showToast("❌ ไม่สามารถเปิดกล้องได้");
+    showHome();
+  });
+}
+
+function stopScanner() {
+  if (html5QrCode) {
+    html5QrCode.stop().catch(() => {}).finally(() => { html5QrCode = null; });
+  }
+}
+
+async function onQRSuccess(decodedText) {
+  stopScanner();
+  const url = decodedText.trim();
+  if (!isAudioUrl(url)) {
+    showToast("⚠️ QR นี้ไม่ใช่ URL ไฟล์เสียง");
+    showHome();
+    return;
+  }
+  openPlayer(url);
+}
+
+function isAudioUrl(url) {
+  try {
+    const u = new URL(url);
+    return /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(u.pathname) || url.startsWith("http");
+  } catch { return false; }
+}
+
+// ══════════════════════════════════════════
+//  PLAYER
+// ══════════════════════════════════════════
+async function openPlayer(url) {
+  currentAudioUrl = url;
+  const filename = url.split("/").pop().split("?")[0] || "ไฟล์เสียง";
+  const now = new Date();
+  const timeStr = now.toLocaleString("th-TH", { hour12: false });
+
+  document.getElementById("player-title").textContent = decodeURIComponent(filename);
+  document.getElementById("player-url").textContent = url;
+  document.getElementById("player-status").textContent = timeStr;
+
+  const audio = document.getElementById("main-audio");
+  audio.src = url;
+  audio.load();
+
+  document.getElementById("log-user").textContent = profile.displayName;
+  document.getElementById("log-time").textContent = timeStr;
+  document.getElementById("log-file").textContent = filename;
+  document.getElementById("log-status").textContent = "กำลังบันทึก…";
+  document.getElementById("log-status").style.color = "var(--warning)";
+
+  showScreen("player-screen");
+
+  // บันทึก local history
+  const entry = {
+    userId: profile.userId,
+    displayName: profile.displayName,
+    audioUrl: url,
+    filename,
+    timestamp: now.toISOString(),
+    timeStr,
+  };
+  sessionHistory.unshift(entry);
+  saveHistory();
+
+  // ส่งไปยัง Google Sheets
+  await logToSheet(entry);
+}
+
+// ══════════════════════════════════════════
+//  GOOGLE SHEETS LOGGING
+// ══════════════════════════════════════════
+async function logToSheet(entry) {
+  try {
+    const res = await fetch(CONFIG.SHEET_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+    const json = await res.json();
+    if (json.status === "ok") {
+      document.getElementById("log-status").textContent = "บันทึกแล้ว ✓";
+      document.getElementById("log-status").style.color = "var(--accent)";
+      showToast("✅ บันทึกข้อมูลสำเร็จ");
+    } else throw new Error();
+  } catch {
+    document.getElementById("log-status").textContent = "บันทึกล้มเหลว (offline)";
+    document.getElementById("log-status").style.color = "var(--danger)";
+    showToast("⚠️ บันทึก offline — จะลองใหม่เมื่อออนไลน์");
+  }
+}
+
+// ══════════════════════════════════════════
+//  LOCAL HISTORY
+// ══════════════════════════════════════════
+function saveHistory() {
+  localStorage.setItem("aqr_history", JSON.stringify(sessionHistory.slice(0, 50)));
+}
+function loadHistory() {
+  try { sessionHistory = JSON.parse(localStorage.getItem("aqr_history") || "[]"); }
+  catch { sessionHistory = []; }
+  renderHistory();
+}
+function renderHistory() {
+  const el = document.getElementById("history-list");
+  if (sessionHistory.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🎶</div>ยังไม่มีประวัติการฟัง</div>`;
+    return;
+  }
+  el.innerHTML = sessionHistory.slice(0, 8).map(h => `
+    <div class="history-item" onclick="openPlayer('${h.audioUrl}')">
+      <div class="history-dot"></div>
+      <div>
+        <div class="history-name">${h.filename}</div>
+        <div class="history-time">${h.timeStr}</div>
+      </div>
+      <div class="history-play">▶</div>
+    </div>
+  `).join("");
+}
+function updateStats() {
+  const today = new Date().toDateString();
+  const todayCount = sessionHistory.filter(h => new Date(h.timestamp).toDateString() === today).length;
+  document.getElementById("stat-today").textContent = todayCount;
+  document.getElementById("stat-total").textContent = sessionHistory.length;
+}
+
+// ══════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ══════════════════════════════════════════
+//  START
+// ══════════════════════════════════════════
+initLiff();
+</script>
+</body>
+</html>
